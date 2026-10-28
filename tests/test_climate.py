@@ -8,7 +8,8 @@ from custom_components.radialight_cloud.climate import (
     RadialightClimate,
     _PRESET_TO_MODE,
 )
-from custom_components.radialight_cloud.const import PRESET_COMFORT
+from custom_components.radialight_cloud.const import PRESET_COMFORT, PRESET_ECO
+from homeassistant.const import ATTR_TEMPERATURE
 
 
 class _FakeCoordinator:
@@ -90,3 +91,58 @@ async def test_set_preset_mode_comfort_writes_api_mode() -> None:
         zone["lock"],
     )
     api.clear_override.assert_not_called()
+
+
+def test_target_temperature_in_comfort_uses_tcomfort() -> None:
+    """In comfort mode the climate target is tComfort."""
+    entity = _climate_for_zone(_zone(mode=2, tComfort=210, tECO=155))
+    assert entity.target_temperature == 21.0
+
+
+def test_target_temperature_in_eco_uses_teco() -> None:
+    """In eco mode the climate target is tECO."""
+    entity = _climate_for_zone(_zone(mode=3, tComfort=210, tECO=155))
+    assert entity.target_temperature == 15.5
+
+
+async def test_set_temperature_in_comfort_writes_tcomfort() -> None:
+    """In comfort mode, set temperature updates tComfort only."""
+    api = MagicMock()
+    api.set_zone_setpoint = AsyncMock()
+    zone = _zone(mode=2, tComfort=210, tECO=155)
+    entity = _climate_for_zone(zone, api=api)
+
+    await entity.async_set_temperature(**{ATTR_TEMPERATURE: 22.0})
+
+    api.set_zone_setpoint.assert_awaited_once_with(
+        "zone-1",
+        zone["program"]["id"],
+        220,
+        zone["tECO"],
+        zone["window"],
+        zone["mode"],
+        zone["pir"],
+        zone["lock"],
+    )
+
+
+async def test_set_temperature_in_eco_writes_teco() -> None:
+    """In eco mode, set temperature updates tECO only."""
+    api = MagicMock()
+    api.set_zone_setpoint = AsyncMock()
+    zone = _zone(mode=3, tComfort=210, tECO=155)
+    entity = _climate_for_zone(zone, api=api)
+
+    await entity.async_set_temperature(**{ATTR_TEMPERATURE: 16.0})
+
+    api.set_zone_setpoint.assert_awaited_once_with(
+        "zone-1",
+        zone["program"]["id"],
+        zone["tComfort"],
+        160,
+        zone["window"],
+        zone["mode"],
+        zone["pir"],
+        zone["lock"],
+    )
+

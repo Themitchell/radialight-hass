@@ -171,16 +171,19 @@ class RadialightClimate(ClimateEntity):
 
     @property
     def target_temperature(self) -> Optional[float]:
-        """Return target temperature."""
+        """Return the setpoint for the active comfort/eco mode."""
         zone = self.coordinator.get_zone(self._zone_id)
         if zone is None:
             return None
 
-        t_comfort = zone.get("tComfort")
-        if t_comfort is None:
-            return None
-
-        return t_comfort / 10.0
+        mode = zone.get("mode")
+        if mode == _PRESET_TO_MODE[PRESET_ECO]:
+            t_eco = zone.get("tECO")
+            return None if t_eco is None else t_eco / 10.0
+        if mode == _PRESET_TO_MODE[PRESET_COMFORT]:
+            t_comfort = zone.get("tComfort")
+            return None if t_comfort is None else t_comfort / 10.0
+        return None
 
     @property
     def preset_mode(self) -> Optional[str]:
@@ -194,11 +197,7 @@ class RadialightClimate(ClimateEntity):
         return _MODE_TO_PRESET.get(mode)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
-        """Set target temperature.
-
-        Args:
-            **kwargs: Temperature and other parameters.
-        """
+        """Set the comfort or eco setpoint for the active mode."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
@@ -207,29 +206,40 @@ class RadialightClimate(ClimateEntity):
         if zone is None:
             raise HomeAssistantError("Zone not available")
 
-        # Convert float °C to int deci-C
-        t_comfort = round(temperature * 10)
+        mode = zone.get("mode")
+        if mode not in (
+            _PRESET_TO_MODE[PRESET_COMFORT],
+            _PRESET_TO_MODE[PRESET_ECO],
+        ):
+            raise HomeAssistantError(
+                "Target temperature can only be set in comfort or eco mode"
+            )
 
-        # Build payload with all required fields
+        setpoint = round(temperature * 10)
+        t_comfort = zone.get("tComfort", 200)
+        t_eco = zone.get("tECO", 100)
+        if mode == _PRESET_TO_MODE[PRESET_ECO]:
+            t_eco = setpoint
+        else:
+            t_comfort = setpoint
+
         program = zone.get("program", {})
         program_id = program.get("id")
         if program_id is None:
-            _LOGGER.error("Zone %s has no program ID", self._zone_id)
-            return
+            raise HomeAssistantError("Zone program not available")
 
         try:
             await self.api.set_zone_setpoint(
                 self._zone_id,
                 program_id,
                 t_comfort,
-                zone.get("tECO", 100),
+                t_eco,
                 zone.get("window", 0),
-                zone.get("mode", 0),
+                mode,
                 zone.get("pir", 0),
                 zone.get("lock", 0),
             )
 
-            # Update coordinator data with new zone state
             try:
                 await self.coordinator.async_request_refresh()
             except Exception as err:
