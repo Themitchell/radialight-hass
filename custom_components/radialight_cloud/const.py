@@ -21,6 +21,8 @@ TEMP_STEP = 0.5
 PRESET_PROGRAM = "program"
 PRESET_COMFORT = "comfort"
 PRESET_ECO = "eco"
+PRESET_ANTIFREEZE = "antifreeze"
+PRESET_AUTO = "auto"
 
 # Configuration keys
 CONF_FIREBASE_API_KEY = "firebase_api_key"

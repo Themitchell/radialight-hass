@@ -30,9 +30,21 @@ from .const import (
     PRESET_PROGRAM,
     PRESET_COMFORT,
     PRESET_ECO,
+    PRESET_ANTIFREEZE,
+    PRESET_AUTO,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Radialight zone.mode integer → HA climate preset.
+_MODE_TO_PRESET = {
+    2: PRESET_COMFORT,
+    3: PRESET_ECO,
+    4: PRESET_ANTIFREEZE,
+    5: PRESET_PROGRAM,  # Timer
+    9: PRESET_AUTO,
+}
+
 
 
 async def async_setup_entry(
@@ -66,7 +78,7 @@ class RadialightClimate(ClimateEntity):
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE
     )
-    _attr_preset_modes = [PRESET_PROGRAM, PRESET_COMFORT, PRESET_ECO]
+    _attr_preset_modes = list(_MODE_TO_PRESET.values())
 
     def __init__(
         self,
@@ -171,21 +183,14 @@ class RadialightClimate(ClimateEntity):
 
     @property
     def preset_mode(self) -> Optional[str]:
-        """Return the current preset mode."""
+        """Return the active preset from the zone mode integer."""
         zone = self.coordinator.get_zone(self._zone_id)
         if zone is None:
             return None
-
-        is_in_override = self._is_in_override(zone)
-        if not is_in_override:
-            return PRESET_PROGRAM
-
-        t_comfort = zone.get("tComfort")
-        t_eco = zone.get("tECO")
-        if t_comfort is not None and t_eco is not None and t_comfort == t_eco:
-            return PRESET_ECO
-
-        return PRESET_COMFORT
+        mode = zone.get("mode")
+        if mode is None:
+            return None
+        return _MODE_TO_PRESET.get(mode)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set target temperature.
