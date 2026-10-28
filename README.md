@@ -341,6 +341,16 @@ This means:
 
 **Important:** Previously, all zones showed identical usage values because the same account-level endpoint was used. Now each zone's sensors use that zone's specific hourly usage data.
 
+
+## Development
+
+Local tests use [uv](https://docs.astral.sh/uv/) and [`pytest-homeassistant-custom-component`](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) (real Home Assistant fixtures; mock the Radialight API, not HA).
+
+```bash
+uv sync --extra dev
+uv run pytest
+```
+
 ## Support
 
 For issues, feature requests, or questions, please open an issue on the [GitHub repository](https://github.com/YOUR_GITHUB_USERNAME/radialight-hass).
