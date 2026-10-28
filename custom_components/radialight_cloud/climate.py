@@ -44,6 +44,7 @@ _MODE_TO_PRESET = {
     5: PRESET_PROGRAM,  # Timer
     9: PRESET_AUTO,
 }
+_PRESET_TO_MODE = {preset: mode for mode, preset in _MODE_TO_PRESET.items()}
 
 
 
@@ -244,48 +245,31 @@ class RadialightClimate(ClimateEntity):
             ) from err
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
-        """Set preset mode for the zone.
-
-        "program" is best-effort until the exact API call is confirmed.
-        """
+        """Set preset mode by writing the mapped Radialight zone mode."""
         zone = self.coordinator.get_zone(self._zone_id)
         if zone is None:
             raise HomeAssistantError("Zone not available")
+
+        mode = _PRESET_TO_MODE.get(preset_mode)
+        if mode is None:
+            raise HomeAssistantError(f"Unsupported preset mode: {preset_mode}")
 
         program = zone.get("program", {})
         program_id = program.get("id")
         if program_id is None:
             raise HomeAssistantError("Zone program not available")
 
-        t_eco = zone.get("tECO", 100)
-        t_comfort = zone.get("tComfort", 200)
-
-        if preset_mode == PRESET_ECO:
-            t_comfort = t_eco
-
         try:
-            if preset_mode == PRESET_PROGRAM:
-                await self.api.clear_override(
-                    self._zone_id,
-                    program_id,
-                    t_comfort,
-                    t_eco,
-                    zone.get("window", 0),
-                    zone.get("mode", 0),
-                    zone.get("pir", 0),
-                    zone.get("lock", 0),
-                )
-            else:
-                await self.api.set_zone_setpoint(
-                    self._zone_id,
-                    program_id,
-                    t_comfort,
-                    t_eco,
-                    zone.get("window", 0),
-                    zone.get("mode", 0),
-                    zone.get("pir", 0),
-                    zone.get("lock", 0),
-                )
+            await self.api.set_zone_setpoint(
+                self._zone_id,
+                program_id,
+                zone.get("tComfort", 200),
+                zone.get("tECO", 100),
+                zone.get("window", 0),
+                mode,
+                zone.get("pir", 0),
+                zone.get("lock", 0),
+            )
 
             try:
                 await self.coordinator.async_request_refresh()
