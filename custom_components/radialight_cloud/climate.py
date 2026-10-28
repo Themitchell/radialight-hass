@@ -46,6 +46,56 @@ _MODE_TO_PRESET = {
 }
 _PRESET_TO_MODE = {preset: mode for mode, preset in _MODE_TO_PRESET.items()}
 
+# Effective status (zone.infoMode). Indices match the app InfoMode enum order.
+_INFO_MODE_STANDBY = 0
+_INFO_MODE_COMFORT = 1
+_INFO_MODE_ECO = 2
+_INFO_MODE_ANTIFREEZE = 3
+_INFO_MODE_COMFORT_PIR_1 = 4
+_INFO_MODE_COMFORT_PIR_2 = 5
+_INFO_MODE_COMFORT_PIR_35 = 6
+_INFO_MODE_ANTIFREEZE_PIR = 7
+_INFO_MODE_ANTIFREEZE_WINDOW = 8
+
+_INFO_MODES_COMFORT = {
+    _INFO_MODE_COMFORT,
+    _INFO_MODE_COMFORT_PIR_1,
+    _INFO_MODE_COMFORT_PIR_2,
+    _INFO_MODE_COMFORT_PIR_35,
+}
+_INFO_MODES_ECO = {_INFO_MODE_ECO}
+_INFO_MODES_ANTIFREEZE = {
+    _INFO_MODE_ANTIFREEZE,
+    _INFO_MODE_ANTIFREEZE_PIR,
+    _INFO_MODE_ANTIFREEZE_WINDOW,
+}
+
+
+def _setpoint_celsius_for_zone(zone: dict) -> float | None:
+    """Return the active setpoint for the zone's selected or effective setting."""
+    mode = zone.get("mode")
+    if mode == _PRESET_TO_MODE[PRESET_ECO]:
+        t_eco = zone.get("tECO")
+        return None if t_eco is None else t_eco / 10.0
+    if mode == _PRESET_TO_MODE[PRESET_COMFORT]:
+        t_comfort = zone.get("tComfort")
+        return None if t_comfort is None else t_comfort / 10.0
+    if mode == _PRESET_TO_MODE[PRESET_ANTIFREEZE]:
+        return MIN_TEMP
+
+    # Program (and similar): follow effective infoMode sub-setting.
+    if mode == _PRESET_TO_MODE[PRESET_PROGRAM]:
+        info_mode = zone.get("infoMode")
+        if info_mode in _INFO_MODES_ECO:
+            t_eco = zone.get("tECO")
+            return None if t_eco is None else t_eco / 10.0
+        if info_mode in _INFO_MODES_COMFORT:
+            t_comfort = zone.get("tComfort")
+            return None if t_comfort is None else t_comfort / 10.0
+        if info_mode in _INFO_MODES_ANTIFREEZE:
+            return MIN_TEMP
+    return None
+
 
 
 async def async_setup_entry(
@@ -171,19 +221,11 @@ class RadialightClimate(ClimateEntity):
 
     @property
     def target_temperature(self) -> Optional[float]:
-        """Return the setpoint for the active comfort/eco mode."""
+        """Return setpoint for the selected mode, or program infoMode sub-setting."""
         zone = self.coordinator.get_zone(self._zone_id)
         if zone is None:
             return None
-
-        mode = zone.get("mode")
-        if mode == _PRESET_TO_MODE[PRESET_ECO]:
-            t_eco = zone.get("tECO")
-            return None if t_eco is None else t_eco / 10.0
-        if mode == _PRESET_TO_MODE[PRESET_COMFORT]:
-            t_comfort = zone.get("tComfort")
-            return None if t_comfort is None else t_comfort / 10.0
-        return None
+        return _setpoint_celsius_for_zone(zone)
 
     @property
     def preset_mode(self) -> Optional[str]:

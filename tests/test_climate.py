@@ -105,6 +105,12 @@ def test_target_temperature_in_eco_uses_teco() -> None:
     assert entity.target_temperature == 15.5
 
 
+def test_target_temperature_in_antifreeze_is_fixed() -> None:
+    """In antifreeze mode the climate target is the fixed frost temperature."""
+    entity = _climate_for_zone(_zone(mode=4, tComfort=210, tECO=155))
+    assert entity.target_temperature == 7.0
+
+
 async def test_set_temperature_in_comfort_writes_tcomfort() -> None:
     """In comfort mode, set temperature updates tComfort only."""
     api = MagicMock()
@@ -145,4 +151,28 @@ async def test_set_temperature_in_eco_writes_teco() -> None:
         zone["pir"],
         zone["lock"],
     )
+
+
+def test_target_temperature_in_program_follows_info_mode_comfort() -> None:
+    """In program mode, comfort infoMode shows tComfort."""
+    entity = _climate_for_zone(
+        _zone(mode=5, infoMode=1, tComfort=210, tECO=155)
+    )
+    assert entity.target_temperature == 21.0
+
+
+def test_target_temperature_in_program_follows_info_mode_eco() -> None:
+    """In program mode, eco infoMode shows tECO."""
+    entity = _climate_for_zone(
+        _zone(mode=5, infoMode=2, tComfort=210, tECO=155)
+    )
+    assert entity.target_temperature == 15.5
+
+
+def test_target_temperature_in_program_follows_info_mode_antifreeze() -> None:
+    """In program mode, antifreeze infoMode shows the fixed frost temp."""
+    entity = _climate_for_zone(
+        _zone(mode=5, infoMode=3, tComfort=210, tECO=155)
+    )
+    assert entity.target_temperature == 7.0
 
