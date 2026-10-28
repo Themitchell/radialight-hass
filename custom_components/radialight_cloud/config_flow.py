@@ -14,6 +14,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import RadialightAPIClient, RadialightError
 from .const import (
     DOMAIN,
+    FIREBASE_TOKEN_URL,
+    RADIALIGHT_BASE_URL,
     CONF_FIREBASE_API_KEY,
     CONF_REFRESH_TOKEN,
     CONF_POLLING_INTERVAL,
@@ -50,7 +52,7 @@ async def validate_credentials(
     """
     session = async_get_clientsession(hass)
     try:
-        api = RadialightAPIClient(firebase_api_key, refresh_token, session)
+        api = RadialightAPIClient(firebase_api_key, refresh_token, session, RADIALIGHT_BASE_URL, FIREBASE_TOKEN_URL)
         await api.get_zones()
     except RadialightError as err:
         if err.retryable:

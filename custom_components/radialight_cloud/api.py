@@ -6,8 +6,6 @@ import re
 import time
 from typing import Any, Optional
 
-from .const import FIREBASE_TOKEN_URL, RADIALIGHT_BASE_URL
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -36,6 +34,8 @@ class RadialightAPIClient:
         firebase_api_key: str,
         refresh_token: str,
         session: aiohttp.ClientSession,
+        base_url: str,
+        firebase_token_url: str,
     ) -> None:
         """Initialize the API client.
 
@@ -43,10 +43,14 @@ class RadialightAPIClient:
             firebase_api_key: Firebase API key for token endpoint.
             refresh_token: Initial refresh token.
             session: aiohttp ClientSession for making requests.
+            base_url: Radialight API base URL.
+            firebase_token_url: Firebase securetoken endpoint URL.
         """
         self.firebase_api_key = firebase_api_key
         self.refresh_token = refresh_token
         self.session = session
+        self.base_url = base_url.rstrip("/")
+        self.firebase_token_url = firebase_token_url
 
         self.id_token: Optional[str] = None
         self.token_expires_at: float = 0
@@ -80,7 +84,7 @@ class RadialightAPIClient:
         if not self.refresh_token:
             raise RadialightError("No refresh token available")
 
-        url = f"{FIREBASE_TOKEN_URL}?key={self.firebase_api_key}"
+        url = f"{self.firebase_token_url}?key={self.firebase_api_key}"
         data = {
             "grant_type": "refresh_token",
             "refresh_token": self.refresh_token,
@@ -145,7 +149,7 @@ class RadialightAPIClient:
         Raises:
             RadialightError: If request fails.
         """
-        url = f"{RADIALIGHT_BASE_URL}{endpoint}"
+        url = f"{self.base_url}{endpoint}"
 
         token = await self.ensure_token_valid()
         headers = {"Authorization": f"Bearer {token}"}

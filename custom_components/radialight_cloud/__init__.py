@@ -25,6 +25,8 @@ from .const import (
     DEFAULT_USAGE_SCALE,
     DATA_API,
     DATA_COORDINATOR,
+    FIREBASE_TOKEN_URL,
+    RADIALIGHT_BASE_URL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,7 +66,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Create API client with session
     session = async_get_clientsession(hass)
-    api = RadialightAPIClient(firebase_api_key, refresh_token, session)
+    api = RadialightAPIClient(firebase_api_key, refresh_token, session, RADIALIGHT_BASE_URL, FIREBASE_TOKEN_URL)
 
     # Create coordinator
     coordinator = RadialightCoordinator(hass, api, polling_interval, usage_scale)
