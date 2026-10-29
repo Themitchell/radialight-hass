@@ -15,7 +15,7 @@ A Home Assistant custom integration to control [Radialight ICON radiators](https
 - **Configurable Polling**: Adjustable polling interval (default: 60 seconds)
 - **Real-Time Monitoring**: Current and target temperature display
 - **Product Monitoring**: View connected radiator status and detected temperatures
-- **Preset Modes**: program / comfort / eco
+- **Preset Modes**: program / comfort / eco / antifreeze / auto (mapped from Radialight zone modes)
 - **Energy Monitoring**: kWh sensors for Energy Dashboard integration
 - **Diagnostics**: Built-in diagnostics (sanitized)
 
@@ -79,31 +79,43 @@ Adjust this in **Settings** → **Devices & Services** → **Radialight Cloud** 
   - Falls back to the first radiator if all are offline
   - Temperatures from the API are in deci-degrees (e.g., 211 = 21.1°C)
 
-- **Target Temperature**: Zone's comfort temperature (`tComfort`)
-  - Adjustable via the climate entity's set temperature control
-  - Minimum: 7°C, Maximum: 30°C, Step: 0.5°C
+- **Target Temperature**: Depends on the active mode / schedule leg (limits 7–30°C, step 0.5°C):
+  - **comfort**: zone `tComfort`
+  - **eco**: zone `tECO`
+  - **antifreeze**: fixed frost temperature (7°C; not writable)
+  - **program**: follows the effective schedule leg from `infoMode` (comfort → `tComfort`, eco → `tECO`, antifreeze → 7°C)
+  - **auto**: no mapped setpoint yet (target may be empty)
 
 ### Availability
 
 A zone is considered available if **any radiator in that zone is online** (`isOffline == false`).
 
-### Setting Temperature
-
-When you adjust the target temperature:
-1. The integration converts your input (°C float) to deci-degrees (rounded integer)
-2. It sends a POST request to `/zone/<zone_id>` with the **full zone configuration** including:
-   - `programId`
-   - `tComfort` (new target temperature in deci-degrees)
-   - `tECO`, `window`, `mode`, `pir`, `lock` (existing values)
-3. The coordinator refreshes zone data after the update
-
 ### Preset Modes
 
-- **program**: Best-effort return to scheduled program. This currently re-sends the existing zone configuration.
-- **comfort**: Sets the target to the zone comfort temperature.
-- **eco**: Sets the target to the zone eco temperature (`tECO`).
+Climate presets map to Radialight `zone.mode` integers (discovered from the app):
 
-> Note: The exact API call to clear server-side overrides is not yet confirmed. “program” is implemented as a safe best-effort payload re-send.
+| Preset | `zone.mode` | Meaning |
+| --- | --- | --- |
+| `comfort` | 2 | Comfort profile |
+| `eco` | 3 | Eco profile |
+| `antifreeze` | 4 | Frost protection (fixed ~7°C) |
+| `program` | 5 | Weekly timer / schedule |
+| `auto` | 9 | App Auto (behaviour not fully documented) |
+
+Selecting a preset POSTs `/zone/<zone_id>` with the mapped `mode` and leaves other zone fields (`tComfort`, `tECO`, `window`, `pir`, `lock`) unchanged.
+
+`infoMode` is the **effective** status (what the radiator is doing now). Under **program**, that is the active schedule leg (comfort / eco / antifreeze, plus PIR / window forced variants). Preset stays `program`; the climate **target temperature** tracks that leg.
+
+### Setting Temperature
+
+Target temperature can be changed only in **comfort** or **eco**:
+1. Convert °C to deci-degrees (rounded integer)
+2. POST `/zone/<zone_id>` with the full zone payload, updating only:
+   - `tComfort` when preset/mode is comfort
+   - `tECO` when preset/mode is eco
+3. Refresh coordinator data after the update
+
+In **antifreeze**, **program**, and **auto**, setting temperature is rejected (or not applicable). Program schedule ownership stays with the radiator; changing setpoint while in program (override behaviour) is not implemented yet.
 
 ### Extra Attributes
 
@@ -111,8 +123,8 @@ The climate entity exposes these attributes:
 - `zone_id`: Zone ID
 - `zone_name`: Zone name
 - `program_id`: Associated program ID
-- `mode`: Current zone mode (numeric, not yet fully interpreted)
-- `info_mode`: Zone info mode
+- `mode`: Selected zone mode integer (`zone.mode`)
+- `info_mode`: Effective status integer (`zone.infoMode`)
 - `is_in_override`: Best-effort override state
 - `t_eco`: Eco temperature in deci-degrees
 - `t_eco_celsius`: Eco temperature in °C
@@ -296,8 +308,11 @@ Advanced entities are disabled by default. Enable them in Settings → Entities 
 ### Known Limitations
 
 - **Schedules (WeekPlans)**: Program schedules are not editable via Home Assistant
-- **Mode Interpretation**: The `mode` and `infoMode` fields are numeric; their exact meanings are not fully mapped
+- **Auto mode**: Selectable as a preset; setpoint / semantics not fully mapped yet
+- **Program overrides**: Changing target temperature while in program (temporary override) is not implemented
+- **Standby / HVAC off**: Standby is reflected in `infoMode` but not mapped to climate HVAC off yet
 - **Per-Radiator Climate Entities**: Each zone has one climate entity (not per radiator)
+- **Cloud 502s**: Occasional Radialight API failures when changing presets; retry usually works
 
 ## Documentation Policy
 
